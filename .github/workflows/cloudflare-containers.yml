@@ -1,0 +1,72 @@
+name: Cloudflare Containers
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/cloudflare-containers.yml"
+      - "DouYinSparkFlow/**"
+      - "cloudflare/**"
+      - "package.json"
+      - "package-lock.json"
+      - "wrangler.jsonc"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-containers-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+
+      - name: Require main branch for deployment
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Dispatch this workflow from the main branch."
+            exit 1
+          fi
+
+      - name: Check Cloudflare credentials
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SPARKFLOW_CF_CHECKPOINT_TOKEN: ${{ secrets.SPARKFLOW_CF_CHECKPOINT_TOKEN }}
+        run: |
+          for name in CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN SPARKFLOW_CF_CHECKPOINT_TOKEN; do
+            if [ -z "${!name}" ]; then
+              echo "Missing repository secret: $name"
+              exit 1
+            fi
+          done
+
+      - name: Build container and Worker bundle
+        if: github.event_name == 'pull_request'
+        run: npm run cf:deploy -- --dry-run
+
+      - name: Deploy Worker and Container
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npm run cf:deploy
+
+      - name: Set container checkpoint secret
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SPARKFLOW_CF_CHECKPOINT_TOKEN: ${{ secrets.SPARKFLOW_CF_CHECKPOINT_TOKEN }}
+        run: printf '%s' "$SPARKFLOW_CF_CHECKPOINT_TOKEN" | npx wrangler secret put SPARKFLOW_CF_CHECKPOINT_TOKEN

@@ -1,4 +1,8 @@
 .env
+.dev.vars
+node_modules/
+.wrangler/
+worker-configuration.d.ts
 state/
 logs/
 output/

@@ -315,6 +315,10 @@ PROXY_SUB_URL=
 
 ## 🐳 部署指南
 
+Cloudflare 部署需要 Cloudflare Containers，步骤和运行限制见
+[Cloudflare Containers 部署说明](docs/cloudflare-containers.md)。普通 Workers
+不能直接运行此项目的 Python、Playwright 浏览器和登录桌面。
+
 ### Docker Compose 部署（推荐）
 
 本项目提供完整的 Docker Compose 配置，包含以下服务：

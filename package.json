@@ -1,0 +1,15 @@
+{
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=22.0.0"
+	},
+	"scripts": {
+		"cf:types": "wrangler types",
+		"cf:dev": "wrangler dev",
+		"cf:deploy": "wrangler deploy"
+	},
+	"devDependencies": {
+		"wrangler": "4.156.0"
+	}
+}
