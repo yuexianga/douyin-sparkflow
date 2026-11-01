@@ -40,19 +40,31 @@ class DeploymentContractTests(unittest.TestCase):
                 with self.subTest(workflow=workflow.name, uses=value):
                     self.assertRegex(value, r"^[^@]+@[0-9a-f]{40}$")
 
-    def test_ci_never_sends_messages_or_reads_secrets(self):
-        # The repository is public: CI must stay a pure verification surface. A
-        # scheduled workflow used to run the real send task from GitHub runners
-        # with account cookies in a secret, which both duplicated the server's
-        # schedule and sent from a foreign IP.
+    def test_ci_never_sends_messages_or_uses_douyin_credentials(self):
+        # Scheduled CI previously ran the real send task with account cookies,
+        # duplicating the server schedule and sending from a foreign IP.
+        # Cloudflare deployment credentials belong only to manual dispatch.
+        import re
+
         for workflow in sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml")):
             text = workflow.read_text(encoding="utf-8")
             with self.subTest(workflow=workflow.name):
-                self.assertNotIn("secrets.", text)
                 self.assertNotIn("--doTask", text)
                 self.assertNotIn("SPARKFLOW_MANUAL_RUN", text)
                 self.assertNotRegex(text, r"(?m)^\s*schedule:\s*$")
                 self.assertNotIn("path: DouYinSparkFlow/logs/", text)
+                secret_steps = [
+                    step
+                    for step in re.findall(
+                        r"(?ms)^      - (?:name|uses|run):.*?(?=^      - (?:name|uses|run):|\Z)",
+                        text,
+                    )
+                    if "secrets." in step
+                ]
+                for step in secret_steps:
+                    self.assertIn("if: github.event_name == 'workflow_dispatch'", step)
+                if workflow.name != "cloudflare-containers.yml":
+                    self.assertFalse(secret_steps)
 
     def test_runtime_config_is_not_tracked_as_the_template(self):
         self.assertTrue((SOURCE_ROOT / "config.example.json").is_file())
